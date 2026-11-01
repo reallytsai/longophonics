@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Long O Phonics Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Fredoka', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            overscroll-behavior: none;
+        }
+        .tile-btn {
+            transition: transform 0.08s ease, background-color 0.15s ease;
+        }
+        .tile-btn:active {
+            transform: scale(0.95);
+        }
+        .slot-active {
+            border-color: #f59e0b !important;
+            background-color: #fef3c7 !important;
+            color: #0f172a !important;
+            box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.35);
+        }
+        .shake {
+            animation: shakeAnim 0.35s ease;
+        }
+        @keyframes shakeAnim {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            75% { transform: translateX(8px); }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 w-screen h-screen overflow-hidden flex flex-col select-none" onpointerdown="unlockAudio()">
+
+    <!-- CONFETTI CANVAS -->
+    <canvas id="confetti-canvas" class="fixed inset-0 pointer-events-none z-50"></canvas>
+
+    <!-- INITIAL USER-GESTURE AUDIO UNLOCK OVERLAY -->
+    <div id="start-quiz-overlay" onclick="startInitialQuiz()" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-40 flex items-center justify-center p-6 cursor-pointer">
+        <div class="bg-slate-800 border-2 border-amber-400/80 rounded-3xl p-8 max-w-md w-full text-center shadow-2xl flex flex-col items-center gap-5">
+            <div class="w-20 h-20 rounded-full bg-amber-500/20 border-2 border-amber-400 flex items-center justify-center text-4xl">
+                🔊
+            </div>
+            <div>
+                <h2 class="text-3xl font-extrabold text-amber-400">Ready to Listen?</h2>
+                <p class="text-slate-300 text-base mt-1">Tap below to enable sound and hear Question 1.</p>
+            </div>
+            <button type="button" class="tile-btn w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-2xl shadow-lg flex items-center justify-center gap-3">
+                <span>▶️</span>
+                <span>Start Listening Quiz</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- MINIMAL TOP BAR -->
+    <header class="bg-slate-800 border-b border-slate-700 px-6 py-3 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-4">
+            <span class="text-2xl font-extrabold text-amber-400 tracking-wide">Long O Phonics</span>
+            <div class="flex bg-slate-900 p-1 rounded-xl border border-slate-700">
+                <button id="btn-mode-quiz" onclick="setMode('quiz')" class="px-4 py-1.5 rounded-lg font-bold text-sm transition bg-amber-500 text-slate-950">Quiz</button>
+                <button id="btn-mode-sandbox" onclick="setMode('sandbox')" class="px-4 py-1.5 rounded-lg font-bold text-sm transition text-slate-400 hover:text-white">Sandbox</button>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <div class="bg-slate-900 border border-slate-700 px-4 py-1.5 rounded-xl font-bold text-sm text-emerald-400">
+                Score: <span id="score-val" class="text-lg">0</span>
+            </div>
+            <button onclick="openSettings()" class="tile-btn bg-slate-700 hover:bg-slate-600 text-slate-100 px-4 py-1.5 rounded-xl font-bold text-sm border border-slate-600">
+                ⚙️ Words
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN FULLSCREEN TWO-COLUMN LAYOUT -->
+    <main class="flex-1 grid grid-cols-12 gap-6 p-6 min-h-0 overflow-hidden">
+
+        <!-- LEFT COLUMN (7 Cols): Word Stage -->
+        <section id="builder-panel" class="col-span-7 bg-slate-800 border-2 border-slate-700 rounded-3xl p-6 flex flex-col justify-between min-h-0">
+
+            <!-- QUIZ AUDIO BAR (Blind Listening: No Word Text or Emoji) -->
+            <div id="quiz-header" class="flex items-center justify-between bg-slate-900 p-3.5 rounded-2xl border border-slate-700 shrink-0">
+                <button onclick="prevWord()" class="tile-btn w-12 h-12 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 flex items-center justify-center font-bold text-xl">◀</button>
+                
+                <div class="flex items-center gap-4">
+                    <button id="btn-listen-word" onclick="playTargetWord()" class="tile-btn bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-8 py-3 rounded-2xl text-xl flex items-center gap-3 shadow-lg transition-all">
+                        <span id="listen-btn-icon">🔊</span>
+                        <span id="listen-btn-text">Listen</span>
+                    </button>
+                    <div id="quiz-pattern-badge" class="px-5 py-2.5 rounded-2xl font-black text-2xl border-2 bg-rose-500/20 text-rose-300 border-rose-400/50">
+                        Pattern: o_e
+                    </div>
+                    <span id="quiz-counter" class="text-base font-bold text-slate-400">1 / 12</span>
+                </div>
+
+                <button onclick="nextWord()" class="tile-btn w-12 h-12 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 flex items-center justify-center font-bold text-xl">▶</button>
+            </div>
+
+            <!-- VOWEL PATTERN SELECTOR (Shown in Sandbox Mode; Auto-selected in Quiz Mode) -->
+            <div id="vowel-selector-bar" class="hidden grid-cols-3 gap-4 my-2 shrink-0">
+                <button id="vowel-o_e" onclick="setVowelPattern('o_e')" class="tile-btn py-3.5 rounded-2xl font-black text-3xl border-2">o_e</button>
+                <button id="vowel-oa" onclick="setVowelPattern('oa')" class="tile-btn py-3.5 rounded-2xl font-black text-3xl border-2">oa</button>
+                <button id="vowel-ow" onclick="setVowelPattern('ow')" class="tile-btn py-3.5 rounded-2xl font-black text-3xl border-2">ow</button>
+            </div>
+
+            <!-- WORD BUILDER STAGE -->
+            <div id="word-stage" class="flex-1 flex flex-col items-center justify-center relative bg-slate-900 rounded-3xl border-2 border-slate-700 p-6 my-1 min-h-0">
+                <!-- Optional Ending Slot Toggle for 'ow' -->
+                <button id="ow-coda-btn" onclick="toggleOwCoda()" class="hidden absolute top-4 right-4 tile-btn bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 px-3.5 py-1.5 rounded-xl text-xs font-bold">
+                    + Ending Slot
+                </button>
+
+                <!-- Dynamic Slots Row -->
+                <div id="slots-row" class="flex items-center justify-center gap-4"></div>
+
+                <!-- Magic e Connecting Smile Arc (Shown only when currentVowel === 'o_e') -->
+                <div id="magic-e-arc" class="w-72 md:w-80 flex flex-col items-center mt-2 pointer-events-none">
+                    <svg viewBox="0 0 240 34" class="w-full h-8 overflow-visible">
+                        <path d="M 28 2 Q 120 36 212 2" fill="none" stroke="#f43f5e" stroke-width="4" stroke-linecap="round" stroke-dasharray="7 6" />
+                    </svg>
+                </div>
+
+                <!-- Simple Status Message -->
+                <div id="stage-feedback" class="hidden mt-3 px-5 py-1.5 rounded-full font-bold text-lg border"></div>
+            </div>
+
+            <!-- BOTTOM ACTION CONTROLS -->
+            <div id="bottom-actions" class="grid grid-cols-2 gap-4 pt-2 shrink-0">
+                <button onclick="clearStage()" class="tile-btn bg-slate-700 hover:bg-slate-600 text-slate-200 py-4 rounded-2xl font-bold text-xl">
+                    Clear
+                </button>
+                <button id="btn-sandbox-speak" onclick="speakBuiltWord()" class="hidden tile-btn bg-sky-500 hover:bg-sky-400 text-slate-950 py-4 rounded-2xl font-black text-xl">
+                    🔊 Speak
+                </button>
+                <button onclick="checkWord()" class="tile-btn bg-emerald-500 hover:bg-emerald-400 text-slate-950 py-4 rounded-2xl font-black text-xl">
+                    Check
+                </button>
+            </div>
+
+        </section>
+
+        <!-- RIGHT COLUMN (5 Cols): Clean Consonant Pool (Silent Click & No IPA) -->
+        <section class="col-span-5 bg-slate-800 border-2 border-slate-700 rounded-3xl p-6 flex flex-col justify-between min-h-0 overflow-hidden">
+
+            <div class="flex items-center justify-between pb-3 border-b border-slate-700 shrink-0">
+                <span class="text-xl font-extrabold text-slate-200">Consonants</span>
+                <div class="flex gap-2">
+                    <button onclick="toggleConsonantScope()" id="scope-toggle-btn" class="tile-btn bg-slate-900 hover:bg-slate-700 text-amber-400 border border-slate-600 px-3.5 py-1.5 rounded-xl text-xs font-bold">
+                        All
+                    </button>
+                    <button onclick="shufflePool()" class="tile-btn bg-slate-900 hover:bg-slate-700 text-slate-300 border border-slate-600 px-3.5 py-1.5 rounded-xl text-xs font-bold">
+                        Shuffle
+                    </button>
+                </div>
+            </div>
+
+            <!-- CLEAN CONSONANT TILES GRID -->
+            <div id="consonant-pool-grid" class="flex-1 grid grid-cols-4 gap-3 overflow-y-auto my-3 pr-1 content-start"></div>
+
+        </section>
+
+    </main>
+
+    <!-- TEACHER WORD LIST MODAL (CHECKBOX SELECTION BY PATTERN) -->
+    <div id="settings-modal" class="fixed inset-0 bg-black/75 backdrop-blur-sm hidden items-center justify-center z-50 p-6">
+        <div class="bg-slate-800 border-2 border-slate-600 rounded-3xl max-w-5xl w-full max-h-[88vh] p-6 shadow-2xl flex flex-col">
+            
+            <!-- Modal Header -->
+            <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-700 shrink-0">
+                <div class="flex items-center gap-3">
+                    <h3 class="text-2xl font-extrabold text-amber-400">⚙️ Select Quiz Words</h3>
+                    <span id="selected-count-badge" class="bg-amber-500/20 text-amber-300 border border-amber-400/40 px-3 py-1 rounded-full text-sm font-bold">
+                        12 selected
+                    </span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="selectAllModalWords(true)" class="tile-btn px-3.5 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold text-xs border border-slate-500">
+                        ☑ Select All
+                    </button>
+                    <button onclick="selectAllModalWords(false)" class="tile-btn px-3.5 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold text-xs border border-slate-500">
+                        ☐ Clear All
+                    </button>
+                    <button onclick="closeSettings()" class="w-9 h-9 rounded-full bg-slate-700 hover:bg-slate-600 font-bold flex items-center justify-center text-slate-300 ml-2">✕</button>
+                </div>
+            </div>
+
+            <!-- Add Custom Word Bar -->
+            <div class="flex items-center gap-3 py-3 border-b border-slate-700 shrink-0">
+                <input id="custom-word-input" type="text" placeholder="Add a custom Long O word (e.g., phone, toast, crow)..." 
+                    onkeydown="if(event.key==='Enter') addCustomWordFromInput()"
+                    class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-500">
+                <button onclick="addCustomWordFromInput()" class="tile-btn bg-sky-500 hover:bg-sky-400 text-slate-950 font-black px-5 py-2.5 rounded-xl text-sm shrink-0">
+                    + Add Custom Word
+                </button>
+            </div>
+
+            <!-- 3-Column Categorized Checkbox Grid -->
+            <div class="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 py-4 min-h-0 overflow-hidden">
+                
+                <!-- o_e Column -->
+                <div class="bg-slate-900/90 border border-rose-500/30 rounded-2xl p-3.5 flex flex-col min-h-0">
+                    <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 shrink-0">
+                        <span class="font-black text-lg text-rose-400">o_e Words</span>
+                        <div class="flex gap-1.5 text-xs">
+                            <button onclick="toggleCategoryWords('o_e', true)" class="text-slate-400 hover:text-white font-bold px-1.5 py-0.5 rounded bg-slate-800">All</button>
+                            <button onclick="toggleCategoryWords('o_e', false)" class="text-slate-400 hover:text-white font-bold px-1.5 py-0.5 rounded bg-slate-800">None</button>
+                        </div>
+                    </div>
+                    <div id="word-list-o_e" class="flex-1 overflow-y-auto grid grid-cols-2 gap-2 pr-1 content-start"></div>
+                </div>
+
+                <!-- oa Column -->
+                <div class="bg-slate-900/90 border border-emerald-500/30 rounded-2xl p-3.5 flex flex-col min-h-0">
+                    <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 shrink-0">
+                        <span class="font-black text-lg text-emerald-400">oa Words</span>
+                        <div class="flex gap-1.5 text-xs">
+                            <button onclick="toggleCategoryWords('oa', true)" class="text-slate-400 hover:text-white font-bold px-1.5 py-0.5 rounded bg-slate-800">All</button>
+                            <button onclick="toggleCategoryWords('oa', false)" class="text-slate-400 hover:text-white font-bold px-1.5 py-0.5 rounded bg-slate-800">None</button>
+                        </div>
+                    </div>
+                    <div id="word-list-oa" class="flex-1 overflow-y-auto grid grid-cols-2 gap-2 pr-1 content-start"></div>
+                </div>
+
+                <!-- ow Column -->
+                <div class="bg-slate-900/90 border border-violet-500/30 rounded-2xl p-3.5 flex flex-col min-h-0">
+                    <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 shrink-0">
+                        <span class="font-black text-lg text-violet-400">ow Words</span>
+                        <div class="flex gap-1.5 text-xs">
+                            <button onclick="toggleCategoryWords('ow', true)" class="text-slate-400 hover:text-white font-bold px-1.5 py-0.5 rounded bg-slate-800">All</button>
+                            <button onclick="toggleCategoryWords('ow', false)" class="text-slate-400 hover:text-white font-bold px-1.5 py-0.5 rounded bg-slate-800">None</button>
+                        </div>
+                    </div>
+                    <div id="word-list-ow" class="flex-1 overflow-y-auto grid grid-cols-2 gap-2 pr-1 content-start"></div>
+                </div>
+
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="pt-3 border-t border-slate-700 flex items-center justify-between shrink-0">
+                <span id="settings-error-msg" class="text-xs font-bold text-rose-400"></span>
+                <div class="flex gap-3">
+                    <button onclick="closeSettings()" class="px-5 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold text-sm">Cancel</button>
+                    <button onclick="saveSettings()" class="tile-btn px-7 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm shadow-lg">Save & Apply</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================================
+        // 1. NON-BLOCKING MULTI-CDN HUMAN AUDIO ENGINE WITH 1200ms WATCHDOG
+        // =========================================================================
+        window._utterances = [];
+        let selectedVoice = null;
+        let activeAudio = null;
+        let activeWatchdog = null;
+        let playbackToken = 0;
+        let audioUnlocked = false;
+        let initialQuestionPlayed = false;
+        const audioCache = {}; // word -> verified fastest MP3 URL
+
+        function setListenButtonVisualState(isPlaying) {
+            const btn = document.getElementById('btn-listen-word');
+            const textEl = document.getElementById('listen-btn-text');
+            if (!btn || !textEl) return;
+            if (isPlaying) {
+                btn.classList.add('ring-4', 'ring-amber-300', 'scale-105');
+                textEl.textContent = 'Playing...';
+            } else {
+                btn.classList.remove('ring-4', 'ring-amber-300', 'scale-105');
+                textEl.textContent = 'Listen';
+            }
+        }
+
+        function startInitialQuiz() {
+            const overlay = document.getElementById('start-quiz-overlay');
+            if (overlay && !overlay.classList.contains('hidden')) {
+                overlay.classList.add('hidden');
+            }
+            audioUnlocked = true;
+            if ('speechSynthesis' in window) {
+                loadVoices();
+                try { window.speechSynthesis.resume(); } catch (e) {}
+            }
+            if (!initialQuestionPlayed && currentMode === 'quiz') {
+                initialQuestionPlayed = true;
+                playTargetWord();
+            }
+        }
+
+        function unlockAudio() {
+            if ('speechSynthesis' in window && !selectedVoice) {
+                loadVoices();
+            }
+            if (!audioUnlocked) {
+                startInitialQuiz();
+            }
+        }
+
+        function loadVoices() {
+            if (!('speechSynthesis' in window)) return;
+            const voices = window.speechSynthesis.getVoices();
+            if (voices && voices.length > 0) {
+                selectedVoice =
+                    voices.find(v => /en[-_](US|GB)/i.test(v.lang) && /Google|Natural|Samantha|Victoria|Microsoft|Alex/i.test(v.name)) ||
+                    voices.find(v => /^en/i.test(v.lang)) ||
+                    voices[0];
+            }
+        }
+
+        if ('speechSynthesis' in window) {
+            loadVoices();
+            window.speechSynthesis.onvoiceschanged = loadVoices;
+        }
+
+        // Zero-latency direct human pronunciation stream candidates
+        function getDirectHumanMp3Candidates(word) {
+            const w = word.toLowerCase().trim();
+            const list = [];
+            if (audioCache[w]) list.push(audioCache[w]);
+            list.push(
+                `https://dict.youdao.com/dictvoice?type=2&audio=${encodeURIComponent(w)}`,
+                `https://ssl.gstatic.com/dictionary/static/pronunciation/2022-03-02/audio/${w.slice(0, 2)}/${w}_en_us_1.mp3`,
+                `https://ssl.gstatic.com/dictionary/static/sounds/oxford/${w}--_us_1.mp3`,
+                `https://api.dictionaryapi.dev/media/pronunciations/en/${w}-us.mp3`
+            );
+            return [...new Set(list)];
+        }
+
+        // Background idle pre-fetcher for dictionaryapi.dev human audio URLs
+        async function resolveHumanAudioUrl(word) {
+            const w = (word || '').toLowerCase().trim();
+            if (!w || audioCache[w]) return;
+
+            try {
+                const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(w)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const phonetics = (data[0] && data[0].phonetics) || [];
+                    const usAudio = phonetics.find(p => p.audio && /-us\.mp3/i.test(p.audio));
+                    const anyAudio = phonetics.find(p => p.audio && p.audio.endsWith('.mp3'));
+                    const chosenUrl = (usAudio && usAudio.audio) || (anyAudio && anyAudio.audio);
+                    if (chosenUrl) {
+                        audioCache[w] = chosenUrl;
+                    }
+                }
+            } catch (e) {}
+        }
+
+        function preloadWordListAudio(words) {
+            setTimeout(() => {
+                words.forEach(w => resolveHumanAudioUrl(w));
+            }, 50);
+        }
+
+        function cleanupActiveAudio() {
+            if (activeWatchdog) {
+                clearTimeout(activeWatchdog);
+                activeWatchdog = null;
+            }
+            if (activeAudio) {
+                try {
+                    activeAudio.onplaying = null;
+                    activeAudio.onended = null;
+                    activeAudio.onerror = null;
+                    activeAudio.pause();
+                    activeAudio.src = '';
+                } catch (e) {}
+                activeAudio = null;
+            }
+        }
+
+        function speakWordSlow(word) {
+            const clean = (word || '').toLowerCase().trim();
+            if (!clean) return;
+
+            playbackToken++;
+            const myToken = playbackToken;
+
+            cleanupActiveAudio();
+            if ('speechSynthesis' in window) {
+                try { window.speechSynthesis.cancel(); } catch (e) {}
+            }
+
+            const candidates = getDirectHumanMp3Candidates(clean);
+            setListenButtonVisualState(true);
+
+            // Strict 1200ms watchdog timer: if online MP3 stalls, immediately use speechSynthesis
+            let playbackStarted = false;
+            activeWatchdog = setTimeout(() => {
+                if (myToken !== playbackToken || playbackStarted) return;
+                cleanupActiveAudio();
+                speakFallbackTTS(clean, myToken);
+            }, 1200);
+
+            tryNextCandidate(candidates, 0, clean, myToken, () => {
+                playbackStarted = true;
+                if (activeWatchdog) {
+                    clearTimeout(activeWatchdog);
+                    activeWatchdog = null;
+                }
+            });
+
+            // Background resolve for future plays
+            resolveHumanAudioUrl(clean);
+        }
+
+        function tryNextCandidate(urls, index, fallbackWord, token, onStarted) {
+            if (token !== playbackToken) return;
+            if (index >= urls.length) {
+                cleanupActiveAudio();
+                speakFallbackTTS(fallbackWord, token);
+                return;
+            }
+
+            const url = urls[index];
+            try {
+                if (activeAudio) {
+                    try {
+                        activeAudio.onplaying = null;
+                        activeAudio.onended = null;
+                        activeAudio.onerror = null;
+                        activeAudio.pause();
+                    } catch (e) {}
+                }
+
+                const audio = new Audio();
+                activeAudio = audio;
+                audio.preload = 'auto';
+                audio.src = url;
+                audio.playbackRate = 0.9;
+
+                let settled = false;
+                const failAndAdvance = () => {
+                    if (settled || token !== playbackToken) return;
+                    settled = true;
+                    tryNextCandidate(urls, index + 1, fallbackWord, token, onStarted);
+                };
+
+                audio.onplaying = () => {
+                    if (token !== playbackToken) return;
+                    settled = true;
+                    audioCache[fallbackWord] = url;
+                    onStarted();
+                };
+
+                audio.onended = () => {
+                    if (token === playbackToken) {
+                        setListenButtonVisualState(false);
+                    }
+                };
+
+                audio.onerror = failAndAdvance;
+
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(failAndAdvance);
+                }
+            } catch (e) {
+                tryNextCandidate(urls, index + 1, fallbackWord, token, onStarted);
+            }
+        }
+
+        function speakFallbackTTS(clean, token) {
+            if (!('speechSynthesis' in window)) {
+                setListenButtonVisualState(false);
+                return;
+            }
+            try {
+                window.speechSynthesis.cancel();
+                window.speechSynthesis.resume();
+                if (!selectedVoice) loadVoices();
+
+                const utter = new SpeechSynthesisUtterance(clean);
+                utter.lang = 'en-US';
+                utter.rate = 0.75;
+                utter.pitch = 1.0;
+                if (selectedVoice) utter.voice = selectedVoice;
+
+                window._utterances.push(utter);
+                const finish = () => {
+                    window._utterances = window._utterances.filter(u => u !== utter);
+                    if (token === playbackToken) {
+                        setListenButtonVisualState(false);
+                    }
+                };
+                utter.onend = finish;
+                utter.onerror = finish;
+                window.speechSynthesis.speak(utter);
+            } catch (e) {
+                setListenButtonVisualState(false);
+            }
+        }
+
+        // =========================================================================
+        // 2. GAME STATE & AUTO VOWEL PATTERN DETECTION
+        // =========================================================================
+        let currentMode = 'quiz'; // 'quiz' | 'sandbox'
+        let currentVowel = 'o_e'; // 'o_e' | 'oa' | 'ow'
+        let owHasCoda = false;
+        let score = 0;
+        let activeSlotIndex = 0;
+        let showAllConsonants = false;
+
+        // Categorized Built-In Word Bank
+        const wordBank = {
+            'o_e': ['home', 'bone', 'cone', 'rope', 'hope', 'note', 'vote', 'rose', 'nose', 'hose', 'hole', 'mole', 'pole', 'code', 'rode', 'joke', 'poke', 'woke', 'stone', 'smoke', 'globe', 'slope'],
+            'oa':  ['boat', 'coat', 'goat', 'road', 'toad', 'load', 'soap', 'loaf', 'goal', 'coal', 'foam', 'roam', 'oak', 'soak', 'cloak', 'float', 'toast', 'roast', 'coach'],
+            'ow':  ['snow', 'bow', 'row', 'low', 'mow', 'tow', 'show', 'blow', 'crow', 'grow', 'flow', 'glow', 'slow', 'know', 'throw', 'bowl']
+        };
+
+        let quizWords = ['home', 'bone', 'rope', 'nose', 'boat', 'coat', 'road', 'goat', 'snow', 'glow', 'blow', 'bowl'];
+        let tempCheckedWords = new Set(quizWords);
+        let currentQuizIndex = 0;
+
+        function getAllSandboxValidWords() {
+            const all = new Set([
+                ...wordBank['o_e'],
+                ...wordBank['oa'],
+                ...wordBank['ow'],
+                ...quizWords
+            ]);
+            return Array.from(all);
+        }
+
+        let stageSlots = ['', 'o', '', 'e'];
+
+        const BASE_SINGLE_CONSONANTS = ['b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'n', 'p', 'r', 's', 't', 'v', 'w', 'y', 'z'];
+        const BASE_BLENDS_DIGRAPHS = ['bl', 'br', 'ch', 'cl', 'cr', 'dr', 'fl', 'fr', 'gl', 'gr', 'kn', 'ph', 'pl', 'pr', 'sc', 'sh', 'sk', 'sl', 'sm', 'sn', 'sp', 'st', 'sw', 'th', 'thr', 'tr', 'wh'];
+        const CORE_FALLBACK_TILES = ['b', 'c', 'd', 'f', 'g', 'h', 'l', 'm', 'n', 'p', 'r', 's', 't', 'v'];
+        let currentPoolOrder = [];
+
+        // Parse any Long O word into its exact { vowel, onset, coda, hasOnset, hasCoda } pieces
+        function extractConsonantsFromWord(word) {
+            const w = (word || '').toLowerCase().trim();
+            if (!w) return { vowel: 'o_e', onset: '', coda: '', hasOnset: true, hasCoda: true };
+
+            if (w.includes('oa')) {
+                const idx = w.indexOf('oa');
+                const onset = w.slice(0, idx);
+                const coda = w.slice(idx + 2);
+                return {
+                    vowel: 'oa',
+                    onset,
+                    coda,
+                    hasOnset: onset.length > 0,
+                    hasCoda: coda.length > 0
+                };
+            }
+
+            if (w.includes('ow')) {
+                const idx = w.indexOf('ow');
+                const onset = w.slice(0, idx);
+                const coda = w.slice(idx + 2);
+                return {
+                    vowel: 'ow',
+                    onset,
+                    coda,
+                    hasOnset: onset.length > 0,
+                    hasCoda: coda.length > 0
+                };
+            }
+
+            // Default: o_e split digraph (e.g., vote -> v + o + t + e, stone -> st + o + n + e)
+            if (w.endsWith('e') && w.includes('o')) {
+                const oIdx = w.indexOf('o');
+                const onset = w.slice(0, oIdx);
+                const coda = w.slice(oIdx + 1, -1);
+                return {
+                    vowel: 'o_e',
+                    onset,
+                    coda,
+                    hasOnset: onset.length > 0,
+                    hasCoda: coda.length > 0
+                };
+            }
+
+            return { vowel: 'o_e', onset: '', coda: '', hasOnset: true, hasCoda: true };
+        }
+
+        function sortConsonantTiles(tiles) {
+            return tiles.slice().sort((a, b) => {
+                const aIsBlend = a.length > 1 ? 1 : 0;
+                const bIsBlend = b.length > 1 ? 1 : 0;
+                if (aIsBlend !== bIsBlend) return aIsBlend - bIsBlend;
+                return a.localeCompare(b);
+            });
+        }
+
+        // Synchronize the Consonant Pool dynamically from active words
+        function computeActiveConsonantTiles() {
+            const tokenSet = new Set();
+
+            if (showAllConsonants) {
+                BASE_SINGLE_CONSONANTS.forEach(t => tokenSet.add(t));
+                BASE_BLENDS_DIGRAPHS.forEach(t => tokenSet.add(t));
+                // Also include any custom blends/codas from the entire wordBank & active quizWords
+                getAllSandboxValidWords().forEach(w => {
+                    const parsed = extractConsonantsFromWord(w);
+                    if (parsed.onset) tokenSet.add(parsed.onset);
+                    if (parsed.coda) tokenSet.add(parsed.coda);
+                });
+            } else {
+                // Smart Pool: guaranteed to contain every onset & coda needed by currently selected quizWords
+                quizWords.forEach(w => {
+                    const parsed = extractConsonantsFromWord(w);
+                    if (parsed.onset) tokenSet.add(parsed.onset);
+                    if (parsed.coda) tokenSet.add(parsed.coda);
+                });
+
+                // Ensure a minimum set of distractors if very few words are selected
+                if (tokenSet.size < 8) {
+                    CORE_FALLBACK_TILES.forEach(t => {
+                        if (tokenSet.size < 10) tokenSet.add(t);
+                    });
+                }
+            }
+
+            return sortConsonantTiles(Array.from(tokenSet));
+        }
+
+        function syncConsonantPool() {
+            currentPoolOrder = computeActiveConsonantTiles();
+            renderConsonantPool();
+        }
+
+        // Detect whether a target word uses 'o_e', 'oa', or 'ow' (and whether it has onset/coda)
+        function detectWordVowelPattern(word) {
+            return extractConsonantsFromWord(word);
+        }
+
+        let oaHasOnset = true;
+
+        function applyQuizWordPattern() {
+            if (currentMode !== 'quiz') return;
+            const targetWord = quizWords[currentQuizIndex] || '';
+            const detected = detectWordVowelPattern(targetWord);
+            currentVowel = detected.vowel;
+            owHasCoda = detected.hasCoda;
+            oaHasOnset = detected.hasOnset;
+
+            const badge = document.getElementById('quiz-pattern-badge');
+            if (badge) {
+                const badgeStyles = {
+                    'o_e': 'bg-rose-500/20 text-rose-300 border-rose-400/60',
+                    'oa':  'bg-emerald-500/20 text-emerald-300 border-emerald-400/60',
+                    'ow':  'bg-violet-500/20 text-violet-300 border-violet-400/60'
+                };
+                badge.className = `px-5 py-2.5 rounded-2xl font-black text-2xl border-2 ${badgeStyles[currentVowel]}`;
+                badge.textContent = `Pattern: ${currentVowel}`;
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            preloadWordListAudio(quizWords);
+            updateModeUI();
+            applyQuizWordPattern();
+            setupStageSlots();
+            updateQuizCounter();
+            syncConsonantPool();
+        });
+
+        function setMode(mode) {
+            currentMode = mode;
+            hideFeedback();
+            updateModeUI();
+            if (currentMode === 'quiz') {
+                applyQuizWordPattern();
+                setupStageSlots();
+                updateQuizCounter();
+                playTargetWord();
+            } else {
+                oaHasOnset = true;
+                setupStageSlots();
+            }
+        }
+
+        function updateModeUI() {
+            const btnQuiz = document.getElementById('btn-mode-quiz');
+            const btnSandbox = document.getElementById('btn-mode-sandbox');
+            const quizHeader = document.getElementById('quiz-header');
+            const vowelSelectorBar = document.getElementById('vowel-selector-bar');
+            const bottomActions = document.getElementById('bottom-actions');
+            const btnSpeak = document.getElementById('btn-sandbox-speak');
+
+            if (currentMode === 'quiz') {
+                btnQuiz.className = "px-4 py-1.5 rounded-lg font-bold text-sm transition bg-amber-500 text-slate-950";
+                btnSandbox.className = "px-4 py-1.5 rounded-lg font-bold text-sm transition text-slate-400 hover:text-white";
+                quizHeader.classList.remove('hidden');
+                quizHeader.classList.add('flex');
+                vowelSelectorBar.classList.add('hidden');
+                vowelSelectorBar.classList.remove('grid');
+                bottomActions.className = "grid grid-cols-2 gap-4 pt-2 shrink-0";
+                btnSpeak.classList.add('hidden');
+            } else {
+                btnSandbox.className = "px-4 py-1.5 rounded-lg font-bold text-sm transition bg-amber-500 text-slate-950";
+                btnQuiz.className = "px-4 py-1.5 rounded-lg font-bold text-sm transition text-slate-400 hover:text-white";
+                quizHeader.classList.add('hidden');
+                quizHeader.classList.remove('flex');
+                vowelSelectorBar.classList.remove('hidden');
+                vowelSelectorBar.classList.add('grid');
+                bottomActions.className = "grid grid-cols-3 gap-4 pt-2 shrink-0";
+                btnSpeak.classList.remove('hidden');
+            }
+        }
+
+        function setVowelPattern(vowel) {
+            currentVowel = vowel;
+            oaHasOnset = true;
+            hideFeedback();
+            setupStageSlots();
+        }
+
+        function toggleOwCoda() {
+            owHasCoda = !owHasCoda;
+            hideFeedback();
+            setupStageSlots();
+        }
+
+        function getEditableSlotIndices() {
+            const indices = [];
+            stageSlots.forEach((val, idx) => {
+                // Fixed vowel positions:
+                // o_e -> [0: editable, 1: 'o', 2: editable, 3: 'e']
+                // oa (with onset) -> [0: editable, 1: 'oa', 2: editable]
+                // oa (no onset, e.g. oak) -> [0: 'oa', 1: editable]
+                // ow -> [0: editable, 1: 'ow', (2: editable)]
+                if (currentVowel === 'o_e' && (idx === 0 || idx === 2)) indices.push(idx);
+                else if (currentVowel === 'oa' && oaHasOnset && (idx === 0 || idx === 2)) indices.push(idx);
+                else if (currentVowel === 'oa' && !oaHasOnset && idx === 1) indices.push(idx);
+                else if (currentVowel === 'ow' && (idx === 0 || (owHasCoda && idx === 2))) indices.push(idx);
+            });
+            return indices;
+        }
+
+        function setupStageSlots() {
+            const themes = {
+                'o_e': 'bg-rose-500 text-white border-rose-300 shadow-lg',
+                'oa':  'bg-emerald-500 text-slate-950 border-emerald-300 shadow-lg',
+                'ow':  'bg-violet-500 text-white border-violet-300 shadow-lg'
+            };
+            ['o_e', 'oa', 'ow'].forEach(v => {
+                const btn = document.getElementById(`vowel-${v}`);
+                if (!btn) return;
+                if (v === currentVowel) {
+                    btn.className = `tile-btn py-3.5 rounded-2xl font-black text-3xl border-2 ${themes[v]}`;
+                } else {
+                    btn.className = "tile-btn py-3.5 rounded-2xl font-black text-3xl border-2 bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-500";
+                }
+            });
+
+            const owBtn = document.getElementById('ow-coda-btn');
+            const arc = document.getElementById('magic-e-arc');
+
+            if (currentVowel === 'o_e') {
+                stageSlots = ['', 'o', '', 'e'];
+                activeSlotIndex = 0;
+                owBtn.classList.add('hidden');
+                arc.classList.remove('hidden');
+            } else if (currentVowel === 'oa') {
+                if (oaHasOnset) {
+                    stageSlots = ['', 'oa', ''];
+                    activeSlotIndex = 0;
+                } else {
+                    stageSlots = ['oa', ''];
+                    activeSlotIndex = 1;
+                }
+                owBtn.classList.add('hidden');
+                arc.classList.add('hidden');
+            } else if (currentVowel === 'ow') {
+                stageSlots = owHasCoda ? ['', 'ow', ''] : ['', 'ow'];
+                activeSlotIndex = 0;
+                if (currentMode === 'sandbox') {
+                    owBtn.classList.remove('hidden');
+                    owBtn.textContent = owHasCoda ? '✕ Ending Slot' : '+ Ending Slot';
+                } else {
+                    owBtn.classList.add('hidden');
+                }
+                arc.classList.add('hidden');
+            }
+
+            renderStageDOM();
+        }
+
+        function renderStageDOM() {
+            const row = document.getElementById('slots-row');
+
+            const makeEditableSlot = (idx) => {
+                const val = stageSlots[idx] || '';
+                const isActive = activeSlotIndex === idx;
+                const filledClass = val
+                    ? 'bg-sky-500 text-slate-950 border-sky-300'
+                    : 'bg-slate-800 text-slate-500 border-slate-600';
+                return `
+                    <button onclick="selectSlot(${idx})" id="slot-${idx}" class="tile-btn w-24 h-24 md:w-28 md:h-28 rounded-3xl border-4 font-black text-5xl flex items-center justify-center ${filledClass} ${isActive ? 'slot-active' : ''}">
+                        <span>${val}</span>
+                    </button>
+                `;
+            };
+
+            const makeFixedVowel = (text, bgClass) => `
+                <div class="w-24 h-24 md:w-28 md:h-28 rounded-3xl border-4 ${bgClass} font-black text-5xl flex items-center justify-center shadow-lg">
+                    <span>${text}</span>
+                </div>
+            `;
+
+            if (currentVowel === 'o_e') {
+                row.innerHTML = `
+                    ${makeEditableSlot(0)}
+                    ${makeFixedVowel('o', 'bg-rose-500 text-white border-rose-300')}
+                    ${makeEditableSlot(2)}
+                    ${makeFixedVowel('e', 'bg-rose-500 text-white border-rose-300')}
+                `;
+            } else if (currentVowel === 'oa') {
+                if (oaHasOnset) {
+                    row.innerHTML = `
+                        ${makeEditableSlot(0)}
+                        ${makeFixedVowel('oa', 'bg-emerald-500 text-slate-950 border-emerald-300')}
+                        ${makeEditableSlot(2)}
+                    `;
+                } else {
+                    row.innerHTML = `
+                        ${makeFixedVowel('oa', 'bg-emerald-500 text-slate-950 border-emerald-300')}
+                        ${makeEditableSlot(1)}
+                    `;
+                }
+            } else if (currentVowel === 'ow') {
+                row.innerHTML = `
+                    ${makeEditableSlot(0)}
+                    ${makeFixedVowel('ow', 'bg-violet-500 text-white border-violet-300')}
+                    ${owHasCoda ? makeEditableSlot(2) : ''}
+                `;
+            }
+        }
+
+        function selectSlot(idx) {
+            hideFeedback();
+            if (stageSlots[idx] !== '') {
+                stageSlots[idx] = '';
+            }
+            activeSlotIndex = idx;
+            renderStageDOM();
+        }
+
+        // =========================================================================
+        // 3. SILENT CONSONANT POOL (Dynamically Synchronized with Active Words)
+        // =========================================================================
+        function renderConsonantPool() {
+            const container = document.getElementById('consonant-pool-grid');
+            if (!container) return;
+            container.innerHTML = '';
+
+            if (!currentPoolOrder || currentPoolOrder.length === 0) {
+                currentPoolOrder = computeActiveConsonantTiles();
+            }
+
+            currentPoolOrder.forEach(token => {
+                const isBlend = token.length > 1;
+                const colorClass = isBlend
+                    ? 'bg-indigo-950/90 hover:bg-indigo-900 border-indigo-500/50 text-indigo-200'
+                    : 'bg-slate-900 hover:bg-slate-700 border-slate-700 text-slate-100';
+
+                const btn = document.createElement('button');
+                btn.className = `tile-btn h-20 border-2 rounded-2xl font-black text-3xl flex items-center justify-center ${colorClass}`;
+                btn.textContent = token;
+                btn.onclick = () => handleConsonantClick(token);
+                container.appendChild(btn);
+            });
+        }
+
+        function toggleConsonantScope() {
+            showAllConsonants = !showAllConsonants;
+            document.getElementById('scope-toggle-btn').innerText = showAllConsonants ? 'Smart' : 'All';
+            syncConsonantPool();
+        }
+
+        function shufflePool() {
+            currentPoolOrder.sort(() => Math.random() - 0.5);
+            renderConsonantPool();
+        }
+
+        function handleConsonantClick(token) {
+            hideFeedback();
+            stageSlots[activeSlotIndex] = token;
+
+            const editableIndices = getEditableSlotIndices();
+            if (editableIndices.length > 1) {
+                const emptySlot = editableIndices.find(i => stageSlots[i] === '');
+                if (emptySlot !== undefined) {
+                    activeSlotIndex = emptySlot;
+                }
+            }
+
+            renderStageDOM();
+        }
+
+        // =========================================================================
+        // 4. CHECKING, SPEAKING & NAVIGATION
+        // =========================================================================
+        function getFormedWord() {
+            if (stageSlots.includes('')) return '';
+            return stageSlots.join('');
+        }
+
+        function clearStage() {
+            hideFeedback();
+            if (currentMode === 'quiz') {
+                applyQuizWordPattern();
+            }
+            setupStageSlots();
+        }
+
+        function speakBuiltWord() {
+            const word = getFormedWord();
+            if (!word) return;
+            speakWordSlow(word);
+        }
+
+        function updateQuizCounter() {
+            document.getElementById('quiz-counter').innerText = `${currentQuizIndex + 1} / ${quizWords.length}`;
+        }
+
+        function playTargetWord() {
+            if (currentMode === 'quiz') {
+                const word = quizWords[currentQuizIndex];
+                speakWordSlow(word);
+            }
+        }
+
+        function prevWord() {
+            if (currentMode !== 'quiz') return;
+            hideFeedback();
+            currentQuizIndex = (currentQuizIndex - 1 + quizWords.length) % quizWords.length;
+            updateQuizCounter();
+            clearStage();
+            setTimeout(() => playTargetWord(), 60);
+        }
+
+        function nextWord() {
+            if (currentMode !== 'quiz') return;
+            hideFeedback();
+            currentQuizIndex = (currentQuizIndex + 1) % quizWords.length;
+            updateQuizCounter();
+            clearStage();
+            setTimeout(() => playTargetWord(), 60);
+        }
+
+        function checkWord() {
+            const formedWord = getFormedWord();
+            if (!formedWord) {
+                showFeedback('Fill all slots first!', 'warn');
+                return;
+            }
+
+            speakWordSlow(formedWord);
+
+            if (currentMode === 'quiz') {
+                const target = quizWords[currentQuizIndex];
+                if (formedWord.toLowerCase() === target.toLowerCase()) {
+                    score += 10;
+                    document.getElementById('score-val').innerText = score;
+                    showFeedback(`✓ Correct! "${formedWord}"`, 'ok');
+                    fireConfetti();
+                    setTimeout(() => nextWord(), 1300);
+                } else {
+                    const panel = document.getElementById('builder-panel');
+                    panel.classList.remove('shake');
+                    void panel.offsetWidth;
+                    panel.classList.add('shake');
+                    showFeedback('Try again!', 'err');
+                }
+            } else {
+                const validWords = getAllSandboxValidWords();
+                const isReal = validWords.some(w => w.toLowerCase() === formedWord.toLowerCase());
+                if (isReal) {
+                    score += 10;
+                    document.getElementById('score-val').innerText = score;
+                    showFeedback(`✓ "${formedWord}"`, 'ok');
+                    fireConfetti();
+                } else {
+                    showFeedback(`"${formedWord}"`, 'warn');
+                }
+            }
+        }
+
+        function showFeedback(msg, type) {
+            const el = document.getElementById('stage-feedback');
+            el.classList.remove('hidden');
+            const styles = {
+                ok:   'bg-emerald-500/20 text-emerald-300 border-emerald-400/50',
+                err:  'bg-rose-500/20 text-rose-300 border-rose-400/50',
+                warn: 'bg-amber-500/20 text-amber-300 border-amber-400/50'
+            };
+            el.className = `mt-3 px-6 py-1.5 rounded-full font-bold text-lg border ${styles[type]}`;
+            el.innerText = msg;
+        }
+
+        function hideFeedback() {
+            const el = document.getElementById('stage-feedback');
+            if (el) el.classList.add('hidden');
+        }
+
+        // =========================================================================
+        // 5. SETTINGS (CATEGORIZED CHECKBOX WORD BANK) & CONFETTI
+        // =========================================================================
+        function openSettings() {
+            tempCheckedWords = new Set(quizWords.map(w => w.toLowerCase()));
+            document.getElementById('settings-error-msg').textContent = '';
+            renderSettingsWordBank();
+            document.getElementById('settings-modal').classList.remove('hidden');
+            document.getElementById('settings-modal').classList.add('flex');
+        }
+
+        function closeSettings() {
+            document.getElementById('settings-modal').classList.remove('flex');
+            document.getElementById('settings-modal').classList.add('hidden');
+        }
+
+        function renderSettingsWordBank() {
+            const accentStyles = {
+                'o_e': 'border-rose-500 bg-rose-500/20 text-rose-200',
+                'oa':  'border-emerald-500 bg-emerald-500/20 text-emerald-200',
+                'ow':  'border-violet-500 bg-violet-500/20 text-violet-200'
+            };
+
+            ['o_e', 'oa', 'ow'].forEach(pattern => {
+                const container = document.getElementById(`word-list-${pattern}`);
+                if (!container) return;
+                container.innerHTML = '';
+
+                wordBank[pattern].forEach(word => {
+                    const isChecked = tempCheckedWords.has(word);
+                    const card = document.createElement('div');
+                    card.className = `tile-btn flex items-center justify-between px-2.5 py-2 rounded-xl border-2 cursor-pointer text-sm font-bold ${
+                        isChecked
+                            ? accentStyles[pattern]
+                            : 'border-slate-800 bg-slate-800/60 text-slate-400 hover:border-slate-700'
+                    }`;
+
+                    // Toggle checkbox on clicking card
+                    card.onclick = () => {
+                        if (tempCheckedWords.has(word)) {
+                            tempCheckedWords.delete(word);
+                        } else {
+                            tempCheckedWords.add(word);
+                        }
+                        document.getElementById('settings-error-msg').textContent = '';
+                        renderSettingsWordBank();
+                    };
+
+                    const left = document.createElement('div');
+                    left.className = 'flex items-center gap-2 truncate';
+
+                    const box = document.createElement('span');
+                    box.className = `w-4 h-4 rounded flex items-center justify-center text-xs font-black border ${
+                        isChecked ? 'bg-amber-400 text-slate-950 border-amber-300' : 'border-slate-600 bg-slate-900'
+                    }`;
+                    box.textContent = isChecked ? '✓' : '';
+
+                    const label = document.createElement('span');
+                    label.className = 'truncate tracking-wide';
+                    label.textContent = word;
+
+                    left.appendChild(box);
+                    left.appendChild(label);
+
+                    // Audio preview button inside each word pill
+                    const soundBtn = document.createElement('button');
+                    soundBtn.type = 'button';
+                    soundBtn.className = 'w-6 h-6 rounded-lg bg-slate-900/70 hover:bg-slate-700 text-xs flex items-center justify-center shrink-0 ml-1';
+                    soundBtn.textContent = '🔊';
+                    soundBtn.title = `Listen to "${word}"`;
+                    soundBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        speakWordSlow(word);
+                    };
+
+                    card.appendChild(left);
+                    card.appendChild(soundBtn);
+                    container.appendChild(card);
+                });
+            });
+
+            const badge = document.getElementById('selected-count-badge');
+            if (badge) {
+                badge.textContent = `${tempCheckedWords.size} selected`;
+            }
+        }
+
+        function selectAllModalWords(shouldSelect) {
+            if (shouldSelect) {
+                ['o_e', 'oa', 'ow'].forEach(p => {
+                    wordBank[p].forEach(w => tempCheckedWords.add(w));
+                });
+            } else {
+                tempCheckedWords.clear();
+            }
+            document.getElementById('settings-error-msg').textContent = '';
+            renderSettingsWordBank();
+        }
+
+        function toggleCategoryWords(pattern, shouldSelect) {
+            if (!wordBank[pattern]) return;
+            wordBank[pattern].forEach(w => {
+                if (shouldSelect) tempCheckedWords.add(w);
+                else tempCheckedWords.delete(w);
+            });
+            document.getElementById('settings-error-msg').textContent = '';
+            renderSettingsWordBank();
+        }
+
+        function addCustomWordFromInput() {
+            const input = document.getElementById('custom-word-input');
+            const raw = (input.value || '').trim().toLowerCase().replace(/[^a-z]/g, '');
+            if (!raw) return;
+
+            const detected = detectWordVowelPattern(raw);
+            const pattern = detected.vowel;
+
+            if (!wordBank[pattern].includes(raw)) {
+                wordBank[pattern].unshift(raw);
+            }
+            tempCheckedWords.add(raw);
+            resolveHumanAudioUrl(raw);
+
+            input.value = '';
+            document.getElementById('settings-error-msg').textContent = '';
+            renderSettingsWordBank();
+        }
+
+        function saveSettings() {
+            const selectedList = [];
+            ['o_e', 'oa', 'ow'].forEach(pattern => {
+                wordBank[pattern].forEach(w => {
+                    if (tempCheckedWords.has(w)) {
+                        selectedList.push(w);
+                    }
+                });
+            });
+
+            if (selectedList.length === 0) {
+                document.getElementById('settings-error-msg').textContent = 'Please select at least 1 word!';
+                return;
+            }
+
+            quizWords = selectedList;
+            currentQuizIndex = 0;
+            preloadWordListAudio(quizWords);
+            syncConsonantPool();
+
+            closeSettings();
+            updateQuizCounter();
+            clearStage();
+            if (currentMode === 'quiz') {
+                playTargetWord();
+            }
+        }
+
+        function fireConfetti() {
+            const canvas = document.getElementById('confetti-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            const colors = ['#f43f5e', '#10b981', '#38bdf8', '#fbbf24', '#a78bfa'];
+            const pieces = Array.from({ length: 40 }, () => ({
+                x: canvas.width * 0.35,
+                y: canvas.height * 0.5,
+                vx: (Math.random() - 0.5) * 14,
+                vy: -(Math.random() * 12 + 4),
+                size: Math.random() * 8 + 5,
+                color: colors[Math.floor(Math.random() * colors.length)]
+            }));
+            let frame = 0;
+            function step() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                pieces.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.42;
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(p.x, p.y, p.size, p.size);
+                });
+                if (++frame < 50) requestAnimationFrame(step);
+                else ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+            requestAnimationFrame(step);
+        }
+    </script>
+</body>
+</html>
